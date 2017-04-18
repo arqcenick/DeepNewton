@@ -31,7 +31,7 @@ for f_iter = 1:numel(f_lst)
     
     img_size = size(img_raw);
     
-    img_save = imresize(img_raw, [256,256], 'method','bicubic');
+    img_save = imresize(img_raw, [128,128], 'method','bicubic');
     
     
     img_name = sprintf('train_imgs/%d', count);
