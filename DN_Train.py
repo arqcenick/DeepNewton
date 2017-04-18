@@ -25,6 +25,7 @@ from keras.datasets import cifar10
 from keras.datasets import mnist
 from keras.utils import np_utils
 from PIL import Image
+from natsort import natsorted
 
 
 DATA_PATH = "./data/train_imgs/"
@@ -33,6 +34,7 @@ DATA_PATH = "./data/train_imgs/"
 def get_train_list(data_path):
     l = glob.glob(os.path.join(data_path,"*"))
     l = [f for f in l if re.search("^\d+.mat$", os.path.basename(f))]
+    l = natsorted(l)
     print len(l)
     train_list = []
     for f in l:
@@ -73,7 +75,7 @@ if __name__ == '__main__':
     conv5 = Convolution2D(16, 3, 3,border_mode='same')(pool2)
     act5 = Activation('relu')(conv5)
     pool3 = MaxPooling2D(pool_size=(2, 2))(act5)
-    conv6 = Convolution2D(32, 3, 3,border_mode='same')(pool3)
+    conv6 = Convolution2D(16, 3, 3,border_mode='same')(pool3)
     act6 = Activation('relu')(conv6)
     pool4 = MaxPooling2D(pool_size=(2, 2))(act6)
     conv7 = Convolution2D(32, 3, 3,border_mode='same')(pool4)
@@ -94,7 +96,7 @@ if __name__ == '__main__':
     #deconv1 = Convolution2D(64, 3, 3, border_mode='same')(code_lr)
     #deact1 = Activation('relu')(deconv1)
     up1 = UpSampling2D(size=(2,2))(code_lr)
-    deconv2 = Convolution2D(32, 3, 3, border_mode='same')(up1)
+    deconv2 = Convolution2D(16, 3, 3, border_mode='same')(up1)
     deact2 = Activation('relu')(deconv2)
     up2 = UpSampling2D(size=(2,2))(deact2)
     deconv3 = Convolution2D(16, 3, 3, border_mode='same')(up2)
@@ -120,23 +122,72 @@ if __name__ == '__main__':
 
     train_images_np = np.reshape(np.asarray(train_images), (-1, 1, im_size, im_size))
 
-    nbEpoch = 50
+    nbEpoch = 100
     batchSize = 1
     numBatches = len(train_list)/batchSize
+    train_or_load = False
+    if train_or_load:
+        for epoch in range(1, nbEpoch + 1):
+            indices = np.random.permutation(len(train_list));
+            for i in range(numBatches):
+                randInd = indices[i*batchSize:(i+1)*batchSize]
 
-    for epoch in range(1, nbEpoch + 1):
-        indices = np.random.permutation(len(train_list));
-        for i in range(numBatches):
-            randInd = indices[i*batchSize:(i+1)*batchSize]
+                #print(train_images_np.shape)
+                codec_loss = codec.train_on_batch(train_images_np[randInd], train_images_np[randInd])
+                #print(codec_loss, "Epoch",  float(i)/numBatches+(epoch-1))
+            print("Epoch %d" % epoch)
+            train_error = np.mean(np.square(codec.predict(train_images_np)-train_images_np))
+            print("Train Error %s" % train_error)
+        enc_model_json = encoder.to_json()
+        with open("encoder.json", "w") as json_file:
+            json_file.write(enc_model_json)
+        # serialize weights to HDF5
+        encoder.save_weights("encoder.h5")
 
-            #print(train_images_np.shape)
-            codec_loss = codec.train_on_batch(train_images_np[randInd], train_images_np[randInd])
-            #print(codec_loss, "Epoch",  float(i)/numBatches+(epoch-1))
-        print("Epoch %d" % epoch)
-        train_error = np.mean(np.square(codec.predict(train_images_np)-train_images_np))
-        print("Train Error %s" % train_error)
+        dec_model_json = decoder.to_json()
+        with open("decoder.json", "w") as json_file:
+            json_file.write(dec_model_json)
+        # serialize weights to HDF5
+        decoder.save_weights("decoder.h5")
+
+        codec_model_json = codec.to_json()
+        with open("codec.json", "w") as json_file:
+            json_file.write(codec_model_json)
+        # serialize weights to HDF5
+        codec.save_weights("codec.h5")
+        print("Saved model into h5 file")
+    else:
+        codec.load_weights("codec.h5")
+        print("Loaded model from h5 file")
+
+
+    #THE LSTM Part
+    '''
+    coded_rnn_input = code_lr = Input(shape=(32,8,8), dtype='float32', name='decode_input')
+    flat1 = Flatten()(coded_rnn_input)
+    lstm1 = LSTM(128)(flat1)
+    dense1 = Dense(2048, activation='relu')(lstm1)
+    reshape1 = Reshape((32,8,8))(dense1)
+    physics = Model(input=[coded_rnn_input], output=[reshape1]);
+    physics.compile(loss='mse', optimizer=adam, metrics=['accuracy'])
+
+
+
+
+
+    train_or_load_lstm = True;
+    if train_or_load_lstm:
+        nbEpoch = 100
+        batchSize = 1
+        numBatches = len(train_list)/batchSize
+    else:
+    '''
+
+
+
     for i in range(len(train_list)):
-        generated = codec.predict(np.reshape(train_images_np[i,:,:,:], (1,1,im_size,im_size)))
+
+        generated = codec.predict(np.reshape((train_images_np[i,:,:,:]), (1,1,im_size,im_size)))
         plt.imshow(generated[0,0,:,:], cmap='gray')
         plt.show()
         plt.imshow(train_images_np[i,0,:,:], cmap='gray')
