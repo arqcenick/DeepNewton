@@ -6,7 +6,7 @@ public class BallScript : MonoBehaviour {
 
 
     Rigidbody rigid;
-    float time = 30f;
+    float time = 10f;
     Vector2 vec;
 
 
@@ -14,14 +14,14 @@ public class BallScript : MonoBehaviour {
     float power;
     private void Awake()
     {
-         vec = Random.insideUnitCircle;
-        power = 20000f + Random.value * 20000f;
+         
     }
 
     // Use this for initialization
     void Start () {
 
-        
+        vec = Random.insideUnitCircle;
+        power = 20000f + Random.value * 20000f;
         rigid = gameObject.GetComponent<Rigidbody>();
         rigid.AddForce(new Vector3(vec.x * power, 0f, vec.y * power));
         
