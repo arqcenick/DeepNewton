@@ -14,6 +14,7 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, Input
 from keras.layers import Reshape, merge
 from keras.layers.core import Activation
+from keras.layers.noise import GaussianNoise
 from keras.layers.normalization import BatchNormalization
 from keras.layers.convolutional import UpSampling2D
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, Deconvolution2D, Cropping2D, ZeroPadding2D
@@ -27,7 +28,7 @@ from keras.datasets import mnist
 from keras.utils import np_utils
 from PIL import Image
 from natsort import natsorted
-
+import cv2
 
 DATA_PATH = "./data/train_imgs/"
 TEST_PATH = "./data/test_imgs/"
@@ -53,6 +54,12 @@ def load_images(image_list):
         img_list.append(img_read)
 
     return img_list
+'''
+def add_gaussian_noise(images):
+    for img in images:
+        noise = np.zeros(128, 128)
+        img = img + cv2.randn(img, (0), (99))
+'''
 
 if __name__ == '__main__':
 
@@ -66,7 +73,8 @@ if __name__ == '__main__':
 
 
     input_lr = Input(shape=(1, im_size, im_size), dtype='float32', name='encode_input')
-    conv1 = Convolution2D(4, 3, 3, border_mode='same')(input_lr)
+    gaussian = GaussianNoise(0.1)(input_lr)
+    conv1 = Convolution2D(4, 3, 3, border_mode='same')(gaussian)
     act1 = Activation('relu')(conv1)
     #conv2 = Convolution2D(32, 3, 3,border_mode='same')(act1)
     #act2 = Activation('relu')(conv2)
@@ -84,26 +92,31 @@ if __name__ == '__main__':
     pool4 = MaxPooling2D(pool_size=(2, 2))(act6)
     conv7 = Convolution2D(32, 3, 3,border_mode='same')(pool4)
     act7 = Activation('relu')(conv7)
-    pool5 = MaxPooling2D(pool_size=(2, 2))(act7)
-    conv8 = Convolution2D(32, 3, 3,border_mode='same')(pool5)
-    act8 = Activation('relu')(conv8)
-    flt1 = Flatten()(act8)
-    fc1 = Dense(128, activation='relu')(flt1)
+    #pool5 = MaxPooling2D(pool_size=(2, 2))(act7)
+    #conv8 = Convolution2D(32, 3, 3,border_mode='same')(pool5)
+    #act8 = Activation('relu')(conv8)
+    flt1 = Flatten()(act7)
+    fc1 = Dense(16*8*8, activation='relu')(flt1)
+    fc2 = Dense(128, activation='relu')(fc1)
     print(fc1.get_shape())
-    encoder = Model(input=[input_lr], output=[fc1])
+    encoder = Model(input=[input_lr], output=[fc2])
     encoder.compile(optimizer=adam, loss='mse', metrics=['accuracy'])
 
 
 
     code_lr = Input(shape=(128,), dtype='float32', name='decode_input')
+    dgaussian = GaussianNoise(0.1)(code_lr)
+
     #deconv0 = Convolution2D(512, 3, 3, border_mode='same')(code_lr)
     #deact0 = Activation('relu')(deconv0)
-    fc2 = Dense(32*4*4, activation='relu')(code_lr)
-    rshp1 = Reshape((32,4,4))(fc2)
-    up0 = UpSampling2D(size=(2,2))(rshp1)
-    deconv1 = Convolution2D(32, 3, 3, border_mode='same')(up0)
-    deact1 = Activation('relu')(deconv1)
-    up1 = UpSampling2D(size=(2,2))(deact1)
+    #dfc1 = Dense(32*4*4, activation='relu')(code_lr)
+    dfc2 = Dense(16*8*8, activation='relu')(dgaussian)
+    rshp1 = Reshape((16,8,8))(dfc2)
+    #up0 = UpSampling2D(size=(2,2))(rshp1)
+    #deconv1 = Convolution2D(32, 3, 3, border_mode='same')(up0)
+    #deact1 = Activation('relu')(deconv1)
+
+    up1 = UpSampling2D(size=(2,2))(rshp1)
     deconv2 = Convolution2D(16, 3, 3, border_mode='same')(up1)
     deact2 = Activation('relu')(deconv2)
     up2 = UpSampling2D(size=(2,2))(deact2)
@@ -131,11 +144,12 @@ if __name__ == '__main__':
     train_images_np = np.reshape(np.asarray(train_images), (-1, 1, im_size, im_size))
     test_images_np = np.reshape(np.asarray(test_images), (-1, 1, im_size, im_size))
 
-    nbEpoch = 100
+    nbEpoch = 500
     batchSize = 1
     numBatches = len(train_list)/batchSize
     train_or_load = False
     if train_or_load:
+        codec.load_weights("codec.h5")
         for epoch in range(1, nbEpoch + 1):
             indices = np.random.permutation(len(train_list));
             for i in range(numBatches):
@@ -181,7 +195,6 @@ if __name__ == '__main__':
 
 
 
-
     #flat_input = Input(shape=(1, im_size, im_size))
     #flat_output = encoder(flat_input)
     #flat3 = Flatten()(flat_output)
@@ -195,37 +208,39 @@ if __name__ == '__main__':
     #THE LSTM Part
 
     encode_size = 128
-
-    coded_rnn_input = code_lr = Input(shape=(8,encode_size), dtype='float32', name='lstm_input')
-    lstm1 = LSTM(512, return_sequences=True, unroll=True)(coded_rnn_input)
-    lstm2 = LSTM(128, unroll=True)(lstm1)
+    timeSize = 5
+    coded_rnn_input = code_lr = Input(shape=(timeSize,encode_size), dtype='float32', name='lstm_input')
+    #lstm1 = LSTM(512, return_sequences=True, unroll=True)(coded_rnn_input)
+    lstm2 = LSTM(128, unroll=True)(coded_rnn_input)
     #print(lstm1.get_shape())
-    #dense1 = L(encode_size, activation='relu')(lstm2)
+    dense1 = Dense(encode_size, activation='relu')(lstm2)
     #print(dense1.get_shape())
-    physics = Model(input=[coded_rnn_input], output=[lstm2]);
+    physics = Model(input=[coded_rnn_input], output=[dense1]);
+    adamlstm=Adam(lr=0.00001, beta_1=0.9 )
     physics.compile(loss='mse', optimizer=adam, metrics=['accuracy'])
 
 
     def plottrain(past, present, future):
-        fig, axes = plt.subplots(1, 9)
+        fig, axes = plt.subplots(1, 7)
         for i, ax in enumerate(axes.flat):
-            if i < 4:
+            if i < 3:
                 ax.imshow(past[i,0,:,:], cmap='gray')
-            elif i == 4:
+            elif i == 3:
                 ax.imshow(present[0,0,:,:], cmap='gray')
             else:
-                #print(i)
-                ax.imshow(future[i-5,0,:,:], cmap='gray')
+                print(future.shape)
+                ax.imshow(future[i-4,0,:,:], cmap='gray')
             ax.set_xticks([])
             ax.set_yticks([])
         plt.show()
 
 
 
-    timeSize = 8
-    train_or_load_lstm = True;
+
+    train_or_load_lstm = False;
     if train_or_load_lstm:
-        nbEpoch = 500
+        nbEpoch = 250
+        #physics.load_weights("physics.h5")
 
         numtimes = len(train_list)-timeSize-1
         for epoch in range(1, nbEpoch + 1):
@@ -251,15 +266,17 @@ if __name__ == '__main__':
         physics_decode = Model(input=[reshape_input], output=[decode_output])
         physics_decode.compile(optimizer=adam, loss='mse')
         '''
-        start = 10
+        start = 35
         generate_codes = np.reshape(test_codes[start:start+timeSize], (1,timeSize,encode_size))
         print(generate_codes.shape)
-        past = np.reshape(test_images_np[5:5+timeSize], (4, 1, im_size, im_size))
-        for j in range(0, len(test_list)-timeSize- start):
+        past = np.reshape(test_images_np[5:5+timeSize], (timeSize, 1, im_size, im_size))
+        mse = 0
+        iteration = len(test_list)-timeSize - start - 1
+        for j in range(0, iteration):
 
             index = np.random.randint(3, len(test_list))
-            index = j+start
-            generate_codes = np.reshape(test_codes[index:index+timeSize], (1,timeSize,encode_size))
+            index = j + start + 1
+            #generate_codes = np.reshape(test_codes[index:index+timeSize], (1,timeSize,encode_size))
             #print("test code shape", test_codes.shape)
             physics_output = physics.predict(generate_codes)
 
@@ -276,13 +293,15 @@ if __name__ == '__main__':
             past[3,0,:,:] = guessed
             #print(guessed.shape)
             #print(test_images_np[j+4,0,:,:].shape)
-
-            concat_guess = np.concatenate((np.squeeze(guessed), test_images_np[j+4+start,0,:,:]), axis=1)
+            res = np.mean(np.square(train_images_np[300,0,:,:] - train_images_np[3+start,0,:,:]))
+            print("Res %f" % res)
+            concat_guess = np.concatenate((np.squeeze(guessed), test_images_np[index+timeSize,0,:,:]), axis=1)
+            mse = mse + np.mean(np.square(np.squeeze(guessed)- test_images_np[index+timeSize,0,:,:]))
             im = Image.fromarray((concat_guess*255).astype(np.uint8))
             filename = 'predictions/future%d.png' % j
             #print(filename)
             im.save(filename)
 
-
+        print(mse/iteration )
             #A = raw_input()
-            #plottrain(past, guessed, train_images_np[index+5:index+9])
+        #plottrain(test_images_np[index+2:index+timeSize], guessed, test_images_np[index+6:index+9])
