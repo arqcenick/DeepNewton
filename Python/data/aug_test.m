@@ -1,9 +1,8 @@
 
 
-    
-
-dataDir = 'Set1';%fullfile('data', '291');
-mkdir('train_imgs');
+ 
+dataDir = 'Set2';%fullfile('data', '291');
+mkdir('test_imgs/');
 count = 0;
 f_lst = [];
 f_lst = [f_lst; dir(fullfile(dataDir, '*.png'))];
@@ -24,18 +23,21 @@ for f_iter = 1:numel(f_lst)
     width = img_size(2);
     height = img_size(1);
     
-    %img_raw = img_raw(1:height-mod(height,12),1:width-mod(width,12),:);
+    
+    
+    img_raw = img_raw(33:end-33,33:end-33);
+    
+    
     
     img_size = size(img_raw);
-    patch_size = 41;
-    stride = 41;
     
-    img_save = imresize(img_raw, [256,256], 'method','bicubic');
+    img_save = imresize(img_raw, [128,128], 'method','bicubic');
     
     
-    img_name = sprintf('train_imgs/%d', count);
+    img_name = sprintf('test_imgs/%d', count);
     count = count + 1;
-    save(img_name, 'train_img');
+    save(img_name, 'img_save');
+    %imwrite(img_save, img_name)
     
     
     
@@ -136,4 +138,3 @@ for f_iter = 1:numel(f_lst)
     
     
 end
-

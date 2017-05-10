@@ -26,7 +26,6 @@ from keras.optimizers import SGD, Adam
 from keras.datasets import cifar10
 from keras.datasets import mnist
 from keras.utils import np_utils
-from PIL import Image
 from natsort import natsorted
 import cv2
 
@@ -210,8 +209,8 @@ if __name__ == '__main__':
     encode_size = 128
     timeSize = 5
     coded_rnn_input = code_lr = Input(shape=(timeSize,encode_size), dtype='float32', name='lstm_input')
-    #lstm1 = LSTM(512, return_sequences=True, unroll=True)(coded_rnn_input)
-    lstm2 = LSTM(128, unroll=True)(coded_rnn_input)
+    lstm1 = LSTM(128, return_sequences=True, unroll=True)(coded_rnn_input)
+    lstm2 = LSTM(128, unroll=True)(lstm1)
     #print(lstm1.get_shape())
     dense1 = Dense(encode_size, activation='relu')(lstm2)
     #print(dense1.get_shape())
@@ -274,9 +273,9 @@ if __name__ == '__main__':
         iteration = len(test_list)-timeSize - start - 1
         for j in range(0, iteration):
 
-            index = np.random.randint(3, len(test_list))
+            #index = np.random.randint(3, len(test_list))
             index = j + start + 1
-            #generate_codes = np.reshape(test_codes[index:index+timeSize], (1,timeSize,encode_size))
+            generate_codes = np.reshape(test_codes[index:index+timeSize], (1,timeSize,encode_size))
             #print("test code shape", test_codes.shape)
             physics_output = physics.predict(generate_codes)
 
@@ -293,13 +292,13 @@ if __name__ == '__main__':
             past[3,0,:,:] = guessed
             #print(guessed.shape)
             #print(test_images_np[j+4,0,:,:].shape)
-            res = np.mean(np.square(train_images_np[300,0,:,:] - train_images_np[3+start,0,:,:]))
-            print("Res %f" % res)
+            #res = np.mean(np.square(train_images_np[300,0,:,:] - train_images_np[3+start,0,:,:]))
+            #print("Res %f" % res)
             concat_guess = np.concatenate((np.squeeze(guessed), test_images_np[index+timeSize,0,:,:]), axis=1)
             mse = mse + np.mean(np.square(np.squeeze(guessed)- test_images_np[index+timeSize,0,:,:]))
             im = Image.fromarray((concat_guess*255).astype(np.uint8))
             filename = 'predictions/future%d.png' % j
-            #print(filename)
+            print(filename)
             im.save(filename)
 
         print(mse/iteration )

@@ -1,8 +1,8 @@
 
 
  
-dataDir = 'Set2';%fullfile('data', '291');
-mkdir('test_imgs_orig/');
+dataDir = 'Set1';%fullfile('data', '291');
+mkdir('test_imgs/');
 count = 0;
 f_lst = [];
 f_lst = [f_lst; dir(fullfile(dataDir, '*.png'))];
@@ -34,11 +34,16 @@ for f_iter = 1:numel(f_lst)
     img_save = imresize(img_raw, [128,128], 'method','bicubic');
     
     
-    img_name = sprintf('test_imgs_orig/%d.png', count);
-    count = count + 1;
-    %save(img_name, 'img_save');
-    imwrite(img_save, img_name)
     
+    
+    img_name = sprintf('train_imgs/%d', count);
+    img_name_rot = sprintf('train_imgs/%d', count + numel(f_lst)) ;
+    count = count + 1;
+    save(img_name, 'img_save');
+    img_save = imrotate(img_save, 90);
+    save(img_name_rot, 'img_save');
+    %imwrite(img_save, img_name)
+end
     
     
             
@@ -137,4 +142,3 @@ for f_iter = 1:numel(f_lst)
             %}
     
     
-end
