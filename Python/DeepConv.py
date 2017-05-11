@@ -6,8 +6,10 @@ from PIL import Image
 import numpy as np
 import scipy.io
 
-
+import tsne
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import pylab
 import scipy.misc
 import keras
 from keras import backend as K
@@ -32,7 +34,7 @@ from keras.utils import np_utils
 from natsort import natsorted
 import cv2
 
-DATA_PATH = "./data/train_imgs/"
+DATA_PATH = "./data/multi_train_imgs/"
 TEST_PATH = "./data/test_imgs/"
 
 
@@ -44,7 +46,7 @@ def get_image_list(data_path):
     train_list = []
     for f in l:
         if os.path.exists(f):
-				train_list.append(f);
+				train_list.append(f)
     return train_list
 
 
@@ -105,7 +107,7 @@ if __name__ == '__main__':
 
     code_lr = Input(shape=(8,8,16), dtype='float32', name='decode_input')
     print(code_lr.get_shape())
-    dgaussian = GaussianNoise(0.1)(code_lr)
+    #dgaussian = GaussianNoise(0.1)(code_lr)
 
     #deconv0 = Convolution2D(512, 3, 3, border_mode='same')(code_lr)
     #deact0 = Activation('relu')(deconv0)
@@ -116,7 +118,7 @@ if __name__ == '__main__':
     #deconv1 = Convolution2D(32, 3, 3, border_mode='same')(up0)
     #deact1 = Activation('relu')(deconv1)
 
-    up1 = UpSampling2D(size=(2,2))(dgaussian)
+    up1 = UpSampling2D(size=(2,2))(code_lr)
     deconv2 = Conv2D(8, (3, 3), border_mode='same')(up1)
     deact2 = Activation('relu')(deconv2)
     up2 = UpSampling2D(size=(2,2))(deact2)
@@ -136,38 +138,51 @@ if __name__ == '__main__':
 
 
     codec_input = Input(shape=(im_size, im_size, 1), dtype='float32', name='encode_input')
+    codec_input_next = Input(shape=(im_size, im_size, 1), dtype='float32', name='encode_input_next')
     decoder_input = encoder(codec_input)
+    decoder_input_next = encoder(codec_input_next)
     codec_output = decoder(decoder_input)
-    codec = Model(input=[codec_input], output=[codec_output])
-    codec.compile(loss='mse', optimizer=adam, metrics=['accuracy'])
+    negated = Lambda(lambda x: -x)(decoder_input_next)
+    code_diff = Add()([decoder_input, negated])
+    codec = Model(input=[codec_input, codec_input_next], output=[codec_output, code_diff])
+    codec.compile(loss='mse', optimizer=adam)
+
+
+    codec_only=Model(input=[codec_input], output=[codec_output])
+    codec_only.compile(loss='mse', optimizer=adam)
 
 
     train_images_np = np.reshape(np.asarray(train_images), (-1, im_size, im_size, 1))
     test_images_np = np.reshape(np.asarray(test_images), (-1, im_size, im_size, 1))
 
-    nbEpoch = 500
+    nbEpoch = 50
     batchSize = 1
-    numBatches = len(train_list)/batchSize
+    numBatches = len(train_list)/batchSize-1
     train_or_load = False
     if train_or_load:
-        #codec.load_weights("codec.h5")
+        codec.load_weights("codec.h5")
         for epoch in range(1, nbEpoch + 1):
-            indices = np.random.permutation(len(train_list));
+            indices = np.random.permutation(len(train_list)-1)
             for i in range(numBatches):
                 randInd = indices[i*batchSize:(i+1)*batchSize]
-
+                #print(randInd)
                 #print(train_images_np.shape)
-                codec_loss = codec.train_on_batch(train_images_np[randInd], train_images_np[randInd])
+                diff_label = np.zeros((1,8,8,16))
+                codec_loss = codec.train_on_batch([train_images_np[randInd], train_images_np[randInd+1]], [train_images_np[randInd], diff_label])
                 #print(codec_loss, "Epoch",  float(i)/numBatches+(epoch-1))
             print("Epoch %d" % epoch)
-            print(len(codec.predict(train_images_np)))
-            train_error = np.mean(np.square(codec.predict(train_images_np)-train_images_np))
+            #print(len(codec_only.predict(train_images_np)))
+            train_error = np.mean(np.square(codec_only.predict(train_images_np)-train_images_np))
             print("Train Error %s" % train_error)
+            print("Code Diff %s" % codec_loss[1])
         enc_model_json = encoder.to_json()
+       
         with open("encoder.json", "w") as json_file:
             json_file.write(enc_model_json)
+        
         # serialize weights to HDF5
         encoder.save_weights("encoder.h5")
+        
 
         dec_model_json = decoder.to_json()
         with open("decoder.json", "w") as json_file:
@@ -176,26 +191,32 @@ if __name__ == '__main__':
         decoder.save_weights("decoder.h5")
 
         codec_model_json = codec.to_json()
+        codec_only_model_json = codec_only.to_json()
         with open("codec.json", "w") as json_file:
             json_file.write(codec_model_json)
+        with open("codec_only.json", "w") as json_file:
+            json_file.write(codec_only_model_json)
         # serialize weights to HDF5
         codec.save_weights("codec.h5")
+        codec_only.save_weights("codec_only.h5")
         print("Saved model into h5 file")
-        '''
+        
         for i in range(len(train_list)):
 
-            generated = codec.predict(np.reshape((train_images_np[i,:,:,:]), (1,im_size,im_size,1)))
+            generated = codec_only.predict(np.reshape((train_images_np[i,:,:,:]), (1,im_size,im_size,1)))
             plt.imshow(generated[0,:,:,0], cmap='gray')
             plt.show()
             plt.imshow(train_images_np[i,:,:,0], cmap='gray')
             plt.show()
-        '''
+        
     else:
-        #codec.load_weights("codec.h5")
+        codec.load_weights("Model_110517/codec.h5")
+        encoder.load_weights("Model_110517/encoder.h5")
+        decoder.load_weights("Model_110517/decoder.h5")
         print("Loaded model from h5 file")
 
-
-
+    
+    
 
 
 
@@ -207,6 +228,23 @@ if __name__ == '__main__':
     #flattener.compile(optimizer=adam, loss='mse')
     train_codes =  encoder.predict((train_images_np))
     test_codes = encoder.predict((test_images_np))
+    a = np.zeros((len(test_codes), 8*8*16))
+    for i in range(len(test_codes)):
+        a[i,:] = test_codes[i].flatten()
+
+    A = tsne.tsne(X = a[0:240,:] ,no_dims = 2, initial_dims = 8*8*16)
+    print(A.shape)
+    colors = cm.binary(np.linspace(0, 1, len(test_codes)/2))
+    cnt=0
+    for c in colors:
+        plt.scatter(A[cnt,0], A[cnt,1], color=c)
+        cnt = cnt+1
+    #plt.scatter(A[:,0], A[:,1])
+    plt.title('t-SNE Plot of Augmented Autoencoder')
+    #plt.show()
+    plt.savefig('augmented.png')
+    raw_input()
+
 
     print("train_codes shape: ", train_codes.shape)
 
@@ -226,7 +264,7 @@ if __name__ == '__main__':
     interaction_layer = Conv2D(16,(3,3), padding='same')(update_layer)
     output_layer = Activation('tanh')(update_layer)
     physics_cell = Model(inputs=[codec_input, hidden_input], outputs=[output_layer, interaction_layer])
-    physics_cell.compile(loss='mse', optimizer=adam, metrics=['accuracy'])
+    physics_cell.compile(loss='mse', optimizer=adam)
 
     
 
@@ -299,8 +337,6 @@ if __name__ == '__main__':
     '''
     
 
-
-
     encode_out_1 = encoder(encoder_t1)
     encode_out_2 = encoder(encoder_t2)
     encode_out_3 = encoder(encoder_t3)
@@ -328,7 +364,7 @@ if __name__ == '__main__':
     decoder_out = decoder(diff_layer8)
     
     
-    adamlstm=Adam(lr=0.00001, beta_1=0.9 )
+    adamlstm=Adam(lr=0.0001, beta_1=0.9 )
     rmsprop = RMSprop(lr=0.0001)
     physics = Model(inputs=[initial_state, encoder_t1, encoder_t2, encoder_t3, encoder_t4], outputs=[decoder_out])
     physics.compile(loss='mse', optimizer=rmsprop)
@@ -368,7 +404,7 @@ if __name__ == '__main__':
 
 
     train_or_load_lstm = False
-    single_frame = True
+    single_frame = False
     if not os.path.isdir("single_predictions"):
         os.mkdir('single_predictions')
     if not os.path.isdir("multi_predictions"):
@@ -376,16 +412,17 @@ if __name__ == '__main__':
     if train_or_load_lstm:
         nbEpoch = 100
         physics.load_weights("physics.h5")
-
+        #encoder.trainable = False
+        #decoder.trainable = False
         numtimes = len(train_list)-timeSize-5
         for epoch in range(1, nbEpoch + 1):
-            indices = np.random.permutation(len(train_list));
+            indices = np.random.permutation(len(train_list))
             randperm = np.random.permutation(numtimes)
             for i in range(3, numtimes-1):
                 t = randperm[i-2]
 
                 train_batch = train_images_np[t:t+timeSize]
-                train_label_batch = train_images_np[t+timeSize+4]
+                train_label_batch = (train_images_np[t+timeSize+4])
                 init_state = np.zeros((1,8,8,16))
                 lstm_loss = physics.train_on_batch([init_state, np.reshape(train_batch[0], (1,128,128,1)),
                 np.reshape(train_batch[1], (1,128,128,1)), 
@@ -394,6 +431,8 @@ if __name__ == '__main__':
                 #[np.reshape(train_label_batch[0], (1,8,8,16)),
                 #np.reshape(train_label_batch[1], (1,8,8,16)),
                 [np.reshape(train_label_batch, (1,128,128,1))])
+                randInd = indices[i*batchSize:(i+1)*batchSize]
+                #codec_loss = codec_only.train_on_batch(train_images_np[randInd], train_images_np[randInd])
             print(lstm_loss, "Epoch",  np.ceil(float(i)/numtimes+(epoch-1)))
 
         physics_model_json = encoder.to_json()
@@ -418,17 +457,28 @@ if __name__ == '__main__':
         mse = 0
         init_state = np.zeros((1,8,8,16))
         iteration = len(test_list)-timeSize - start - 1
+        outputs = []
         for j in range(0, iteration - 5):
 
             #index = np.random.randint(3, len(test_list))
             index = j + start + 1
             if single_frame:
                 generate_codes = np.reshape(test_images_np[index:index+timeSize], (timeSize,128,128,1))
+            elif j < 4:
+                generate_codes = np.reshape(test_images_np[index:index+timeSize], (timeSize,128,128,1))
+                
+            elif j >= 4:
+                for t in range(timeSize-1):
+                    print(t)
+                    generate_codes[t] = generate_codes[t+1]
+                generate_codes[3] =np.reshape(test_images_np[index+3:index+4], (1,128,128,1))
+                
             #print("test code shape", test_codes.shape)
             [physics_output] = physics.predict([init_state,np.reshape(generate_codes[0], (1,128,128,1)),
                 np.reshape(generate_codes[1], (1,128,128,1)), 
                 np.reshape(generate_codes[2], (1,128,128,1)),
                 np.reshape(generate_codes[3], (1,128,128,1))])
+            outputs.append(physics_output)
             #init_state = hidden_state_physics
             #for t in range(timeSize-1):
             #    generate_codes[t,:,:,:] = generate_codes[t+1,:,:,:]
@@ -499,3 +549,4 @@ if __name__ == '__main__':
         print(mse/iteration )
             #A = raw_input()
         #plottrain(test_images_np[index+2:index+timeSize], guessed, test_images_np[index+6:index+9])
+        

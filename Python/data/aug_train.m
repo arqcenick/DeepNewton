@@ -1,8 +1,8 @@
 
 
  
-dataDir = 'Set1';%fullfile('data', '291');
-mkdir('test_imgs/');
+dataDir = 'MultiSet1';%fullfile('data', '291');
+mkdir('multi_train_imgs/');
 count = 0;
 f_lst = [];
 f_lst = [f_lst; dir(fullfile(dataDir, '*.png'))];
@@ -36,12 +36,19 @@ for f_iter = 1:numel(f_lst)
     
     
     
-    img_name = sprintf('train_imgs/%d', count);
-    img_name_rot = sprintf('train_imgs/%d', count + numel(f_lst)) ;
+    img_name = sprintf('multi_train_imgs/%d', count);
+    img_name_rot = sprintf('multi_train_imgs/%d', count + numel(f_lst));
+    img_name_rot2 = sprintf('multi_train_imgs/%d', count + 2*numel(f_lst)) ;
+    img_name_rot3 = sprintf('multi_train_imgs/%d', count + 3*numel(f_lst)) ;
     count = count + 1;
     save(img_name, 'img_save');
     img_save = imrotate(img_save, 90);
+    
     save(img_name_rot, 'img_save');
+    img_save = imrotate(img_save, 90);
+    save(img_name_rot2, 'img_save');
+    %img_save = imrotate(img_save, 90);
+    %save(img_name_rot3, 'img_save');
     %imwrite(img_save, img_name)
 end
     
