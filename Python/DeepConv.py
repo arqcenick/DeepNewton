@@ -228,6 +228,8 @@ if __name__ == '__main__':
     #flattener.compile(optimizer=adam, loss='mse')
     train_codes =  encoder.predict((train_images_np))
     test_codes = encoder.predict((test_images_np))
+    
+    '''
     a = np.zeros((len(test_codes), 8*8*16))
     for i in range(len(test_codes)):
         a[i,:] = test_codes[i].flatten()
@@ -240,12 +242,12 @@ if __name__ == '__main__':
         plt.scatter(A[cnt,0], A[cnt,1], color=c)
         cnt = cnt+1
     #plt.scatter(A[:,0], A[:,1])
-    plt.title('t-SNE Plot of Augmented Autoencoder')
+    #plt.title('t-SNE Plot of Augmented Autoencoder')
     #plt.show()
-    plt.savefig('augmented.png')
-    raw_input()
+    #plt.savefig('augmented.png')
+    #raw_input()
 
-
+    '''
     print("train_codes shape: ", train_codes.shape)
 
     #THE Recurrent Part
@@ -365,7 +367,7 @@ if __name__ == '__main__':
     
     
     adamlstm=Adam(lr=0.0001, beta_1=0.9 )
-    rmsprop = RMSprop(lr=0.0001)
+    rmsprop = RMSprop(lr=0.00005)
     physics = Model(inputs=[initial_state, encoder_t1, encoder_t2, encoder_t3, encoder_t4], outputs=[decoder_out])
     physics.compile(loss='mse', optimizer=rmsprop)
 
@@ -410,7 +412,7 @@ if __name__ == '__main__':
     if not os.path.isdir("multi_predictions"):
         os.mkdir('multi_predictions')
     if train_or_load_lstm:
-        nbEpoch = 100
+        nbEpoch = 2000
         physics.load_weights("physics.h5")
         #encoder.trainable = False
         #decoder.trainable = False
@@ -471,7 +473,7 @@ if __name__ == '__main__':
                 for t in range(timeSize-1):
                     print(t)
                     generate_codes[t] = generate_codes[t+1]
-                generate_codes[3] =np.reshape(test_images_np[index+3:index+4], (1,128,128,1))
+                generate_codes[3] =outputs[j-4]
                 
             #print("test code shape", test_codes.shape)
             [physics_output] = physics.predict([init_state,np.reshape(generate_codes[0], (1,128,128,1)),

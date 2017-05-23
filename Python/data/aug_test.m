@@ -1,7 +1,7 @@
 
 
  
-dataDir = 'Set3';%fullfile('data', '291');
+dataDir = 'MultiSetTest1';%fullfile('data', '291');
 mkdir('test_imgs/');
 count = 0;
 f_lst = [];
