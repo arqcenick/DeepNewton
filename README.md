@@ -11,3 +11,5 @@ Below are the results for one and multiple objects:
 
 ![](gifs/1otzy3.gif)
 ![](gifs/1ou023.gif)
+
+[a relative link](A Final Report on DeepNewton_CetinCatalbas.pdf)
