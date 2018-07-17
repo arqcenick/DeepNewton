@@ -12,4 +12,4 @@ Below are the results for one and multiple objects:
 ![](gifs/1otzy3.gif)
 ![](gifs/1ou023.gif)
 
-![Final report](https://github.com/arqcenick/DeepNewton/blob/master/A%20Final%20Report%20on%20DeepNewton_CetinCatalbas.pdf)
+[Final report](https://cdn.rawgit.com/arqcenick/DeepNewton/426bdb47/A%20Final%20Report%20on%20DeepNewton_CetinCatalbas.pdf)
